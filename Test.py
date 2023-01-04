@@ -7,18 +7,14 @@ import os
 from dotenv import load_dotenv
 
 
-
-def find(search, df, name = None):
-    ''' Function that combines all columns and searches for a match. Search from input, df = pandas dataframe '''
-    #search = search.split("@")[1].lower()
-    cols = list(df.columns)
-    df["search"] = df[cols].apply(lambda x: "".join(str(x).lower()), axis = 1)
-    result = df.loc[df["search"].str.contains(search, case=False)]
-    result.drop(columns=["search"])
-    result = result.sort_values(by=["Birth","Death"], ascending = True, na_position="first")
-    return result
-
 def find_mult(search, df):
+    def find(search, df, name = None):
+        ''' Function that combines all columns and searches for a match. Search from input, df = pandas dataframe '''
+        cols = list(df.columns)
+        df["search"] = df[cols].apply(lambda x: "".join(str(x).lower()), axis = 1)
+        result = df.loc[df["search"].str.contains(search, case=False)]
+        result.drop(columns=["search"])
+        return result
     search = search.split("@")[1].lower()
     search_elements = search.split(" ")
     step = 0
@@ -29,6 +25,12 @@ def find_mult(search, df):
         else: result = find(i,result)
     return result
 
+def find_range(search, df):
+    #search = search.split("@")[1]
+    if search.isnumeric():
+        df = df.query("Birth <= "+search + " <= Death")
+        return df
+    else: return False
 
 def print_people(df):
     '''Prints search results of people'''
@@ -47,11 +49,11 @@ def print_people(df):
     text = ""
     for i in col:
         row = df.loc[i]
-        birth = trans_year(row, "Birth")
-        death = trans_year(row,"Death")
-        position = row["Position"]
-        city = trans_na(row,"City/Region","city")
-        country = trans_na(row, "Country", "country")
+        birth = str(trans_year(row, "Birth"))
+        death = str(trans_year(row,"Death"))
+        position = str(row["Position"])
+        city = str(trans_na(row,"City/Region","city"))
+        country = str(trans_na(row, "Country", "country"))
         name = row["Name"]
         if "," in name: name = name.split(",")[0]
         else: name = name
@@ -103,7 +105,7 @@ def help():
     print (
         '''
             Available functions: \n
-                "search @<input>" - searches for any match in the database. Multiple criterias may be searched from with a simple space \n
+                "search @<input> @<year>" - searches for any match in the database. Multiple criterias may be searched from with a simple space. \n
                 "exit/quit" - exits the application and allows you to save your data \n
                 "read" - reads specified file \n
                 "write" - saves the file \n
@@ -167,18 +169,23 @@ def main():
     rows = range(0,1)
     data = pd.read_excel(file, sheet_name = sheet, usecols = cols, skiprows=rows).drop_duplicates()
     data = fill_data(data)
+    data = data.sort_values(by=["Birth","Death"], ascending = True, na_position="first")
     find_dupl(data, "Name")
     read_data = []
     loop = 0
 
     while loop < 1:
         inp = input("What do you want me to do? ").lower()
+        inp_base = inp.split("@")[0].strip()
         if inp == "quit" or inp == "exit":
             to_save = input("Do you want to save the data? ").lower()
             if "yes" in to_save or "" in to_save or "y" in to_save: write(data)
             quit()
-        elif "search" in inp:
+        elif inp_base == "search":
             result = find_mult(inp, data)
+            if len(inp.split("@"))>2:
+                range_search = inp.split("@")[2]
+                result = find_range(range_search,result)
             people = print_people(result)
             print(people)
             print(str(len(result.index)) + " results have been found from the search '" + inp.split("@")[1] + "'")
